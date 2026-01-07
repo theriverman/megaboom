@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import importlib.metadata
 import json
 import platform
 import re
@@ -49,70 +50,63 @@ def detect_macos_bluetooth_mac() -> str | None:
     return preferred_hits[0] if preferred_hits else (any_hits[0] if any_hits else None)
 
 
-def _migrate_cfg(cfg: dict) -> dict:
-    cfg = cfg if isinstance(cfg, dict) else {}
-    devices_in = cfg.get("devices") if isinstance(cfg.get("devices"), dict) else {}
-    devices: dict[str, dict] = {}
-    for label, entry in devices_in.items():
-        if not isinstance(entry, dict):
-            continue
-        lbl = str(label)
-        ble_id = entry.get("ble_id")
-        name_hint = entry.get("name_hint")
-        if ble_id or name_hint:
-            devices[lbl] = {}
-            if ble_id:
-                devices[lbl]["ble_id"] = ble_id
-            if name_hint:
-                devices[lbl]["name_hint"] = name_hint
-
-    default_device = cfg.get("default_device") if isinstance(cfg.get("default_device"), str) else None
-
-    # Legacy flat keys
-    if "ble_id" in cfg or "name_hint" in cfg:
-        legacy_label = default_device or "default"
-        entry = devices.get(legacy_label, {})
-        if cfg.get("ble_id"):
-            entry.setdefault("ble_id", cfg.get("ble_id"))
-        if cfg.get("name_hint"):
-            entry.setdefault("name_hint", cfg.get("name_hint"))
-        if entry:
-            devices[legacy_label] = entry
-            default_device = default_device or legacy_label
-
-    if default_device and default_device not in devices:
-        default_device = None
-    if default_device is None and devices:
-        default_device = next(iter(devices))
-
-    cfg["devices"] = devices
-    cfg["default_device"] = default_device
-    cfg.pop("ble_id", None)
-    cfg.pop("name_hint", None)
-    return cfg
-
-
 def load_cfg() -> dict:
     if CFG_PATH.exists():
         raw = json.loads(CFG_PATH.read_text(encoding="utf-8"))
     else:
         raw = {}
-    return _migrate_cfg(raw)
+    if not isinstance(raw, dict):
+        raw = {}
+    raw.setdefault("devices", {})
+    if not isinstance(raw["devices"], dict):
+        raw["devices"] = {}
+    if not isinstance(raw.get("default_device"), str):
+        raw["default_device"] = None
+    return raw
 
 
 def save_cfg(cfg: dict) -> None:
-    cfg = _migrate_cfg(cfg)
+    cfg = cfg if isinstance(cfg, dict) else {}
     CFG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CFG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
 
 
-def remember_device(cfg: dict, label: str, ble_id: str, name_hint: str | None, set_default: bool) -> None:
+def cmd_config_path():
+    print(CFG_PATH)
+    if CFG_PATH.exists():
+        print("Config file exists.")
+    else:
+        print("Config file does not exist yet.")
+
+
+def get_version() -> str:
+    # Prefer installed package version; fall back to git describe in a working tree.
+    for dist_name in ("bluetoothle", "megaboom"):
+        try:
+            return importlib.metadata.version(dist_name)
+        except importlib.metadata.PackageNotFoundError:
+            pass
+    try:
+        res = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            check=True,
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).resolve().parent,
+        )
+        version = res.stdout.strip()
+        if version:
+            return version
+    except Exception:
+        pass
+    return "unknown"
+
+
+def remember_device(cfg: dict, label: str, ble_id: str, set_default: bool) -> None:
     label = label.strip() if label else "default"
     cfg = cfg if cfg else {}
     cfg.setdefault("devices", {})
     cfg["devices"][label] = {"ble_id": ble_id}
-    if name_hint:
-        cfg["devices"][label]["name_hint"] = name_hint
     if set_default or not cfg.get("default_device"):
         cfg["default_device"] = label
     save_cfg(cfg)
@@ -130,11 +124,11 @@ def get_default_device(cfg: dict):
     return label, device
 
 
-def derive_label(explicit_label: str | None, name_hint: str | None, device) -> str:
+def derive_label(explicit_label: str | None, suggested_label: str | None, device) -> str:
     if explicit_label:
         return explicit_label
-    if name_hint:
-        return name_hint
+    if suggested_label:
+        return suggested_label
     if isinstance(device, str):
         return device
     if getattr(device, "name", None):
@@ -228,7 +222,7 @@ async def cmd_scan(
     if remember:
         cfg = load_cfg()
         label = derive_label(remember_as, name_substring, dev)
-        remember_device(cfg, label, dev.address, name_substring, set_default)
+        remember_device(cfg, label, dev.address, set_default)
 
 
 async def find_device(name_substring: str, timeout: float):
@@ -297,7 +291,18 @@ def main():
     pwr_id.add_argument("--set-default", action="store_true", help="Set this device as the default/favourite")
     pwr_id.add_argument("action", choices=["on", "off"])
 
+    sub.add_parser("version", help="Show version from latest git tag")
+    sub.add_parser("config", help="Show the config file location")
+
     args = ap.parse_args()
+
+    if args.command == "version":
+        print(get_version())
+        return
+
+    if args.command == "config":
+        cmd_config_path()
+        return
 
     if args.command == "scan":
         if args.remember and not args.name:
@@ -321,7 +326,7 @@ def main():
         if args.remember:
             cfg = load_cfg()
             label = derive_label(args.remember_as, None, args.ble_id)
-            remember_device(cfg, label, args.ble_id, None, args.set_default)
+            remember_device(cfg, label, args.ble_id, args.set_default)
         return
 
     # power command
@@ -329,12 +334,11 @@ def main():
     default_label, default_entry = get_default_device(cfg)
 
     ble_id = args.ble_id
-    name_hint = args.name
-    if not ble_id and not name_hint and default_entry:
+    name_substring = args.name
+    if not ble_id and default_entry:
         ble_id = default_entry.get("ble_id") or ble_id
-        name_hint = default_entry.get("name_hint") or name_hint
 
-    if not ble_id and not name_hint:
+    if not ble_id and not name_substring:
         raise SystemExit(
             "No default/favourite device configured. Provide --ble-id or --name, "
             f"or set a default via scan --remember or power-id --remember (config: {CFG_PATH})."
@@ -348,7 +352,7 @@ def main():
 
     cmd = 1 if args.action == "on" else 2
     try:
-        asyncio.run(send_power(ble_id, name_hint, my_mac, cmd, args.timeout))
+        asyncio.run(send_power(ble_id, name_substring, my_mac, cmd, args.timeout))
     except BleakDeviceNotFoundError as e:
         print(e)
 

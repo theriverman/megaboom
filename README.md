@@ -12,6 +12,7 @@ Install or refresh from local source (rebuilds the wheel and replaces the shim i
 ```bash
 uv tool install --force --reinstall --no-cache .
 ```
+Versioning is derived from git tags via setuptools-scm; make sure your working tree has tags when building.
 During development (live edits without reinstalls):
 ```bash
 uv tool install --force --editable --no-cache .
@@ -20,22 +21,21 @@ Verify: `megaboom --help`. Make sure `~/.local/bin` is on your `PATH`.
 
 ## Config file (location, schema, behaviour)
 - Path: `~/.config/theriverman/megaboom/ue_megaboom.json`
-- Schema (auto-migrated from any legacy flat keys):
+- Schema:
   ```json
   {
     "devices": {
       "livingroom": {
-        "ble_id": "A7F24F0B-D4D8-0F63-3852-18D36B714156",
-        "name_hint": "MEGABOOM"
+        "ble_id": "A7F24F0B-D4D8-0F63-3852-18D36B714156"
       }
     },
     "default_device": "livingroom"
   }
   ```
-- `devices` is a map of labels → `{ble_id?, name_hint?}`; `ble_id` is preferred for reliability.
+- `devices` is a map of labels → `{ble_id}`.
 - `default_device` chooses which entry is used when `--ble-id/--name` are omitted.
-- Legacy `ble_id`/`name_hint` at the top level are migrated into `devices` automatically on load/save.
 - Remembering a device without an existing default will set it as default unless you opt out.
+- Show the location any time: `megaboom config-path`.
 
 ## Command overview
 `megaboom scan` — List advertisers; optionally remember a found device.
@@ -44,7 +44,7 @@ megaboom scan
 megaboom scan --name MEGABOOM --remember --remember-as livingroom --set-default
 ```
 - `--remember` requires `--name` (used to pick the match).
-- Labels default to name/substring/address unless `--remember-as` is provided.
+- Labels default to name/substring/address unless `--remember-as` is provided; only the BLE id is stored.
 - `--set-default` marks the label as favourite.
 
 `megaboom power-id` — Power on/off by explicit BLE id (from scan output).
@@ -63,6 +63,10 @@ megaboom power --ble-id A7F2...4156 off
 megaboom power --name MEGABOOM on
 ```
 Rules: If no default/favourite is configured you must pass `--ble-id` or `--name`; otherwise it errors. macOS auto-detects your own Bluetooth MAC; override with `--my-mac AA:BB:CC:DD:EE:FF` if needed.
+
+`megaboom config-path` — Print the config file location (and whether it exists).
+
+`megaboom version` — Print the installed package version (set from git tags via setuptools-scm; falls back to `unknown` if no version metadata is available).
 
 ## Device discovery tips (macOS BLE)
 - Pairing mode: hold the speaker’s Bluetooth button; it should broadcast its name instead of `<no name>`.

@@ -1,11 +1,22 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "bluetoothle"
-version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.13"
+name = "megaboom"
+dynamic = ["version"]
+description = "UE Megaboom power control over BLE (macOS)"
+requires-python = ">=3.14"
 dependencies = [
     "bleak>=2.1.1",
 ]
 
 [project.scripts]
-  megaboom = "megaboom:main"
+megaboom = "megaboom:main"
+
+[tool.setuptools]
+py-modules = ["megaboom"]
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-date"
