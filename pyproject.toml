@@ -1,0 +1,11 @@
+[project]
+name = "bluetoothle"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "bleak>=2.1.1",
+]
+
+[project.scripts]
+  megaboom = "megaboom:main"
