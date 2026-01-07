@@ -35,7 +35,7 @@ Verify: `megaboom --help`. Make sure `~/.local/bin` is on your `PATH`.
 - `devices` is a map of labels → `{ble_id}`.
 - `default_device` chooses which entry is used when `--ble-id/--name` are omitted.
 - Remembering a device without an existing default will set it as default unless you opt out.
-- Show the location any time: `megaboom config-path`.
+- Show the location any time: `megaboom config`.
 
 ## Command overview
 `megaboom scan` — List advertisers; optionally remember a found device.
@@ -64,7 +64,7 @@ megaboom power --name MEGABOOM on
 ```
 Rules: If no default/favourite is configured you must pass `--ble-id` or `--name`; otherwise it errors. macOS auto-detects your own Bluetooth MAC; override with `--my-mac AA:BB:CC:DD:EE:FF` if needed.
 
-`megaboom config-path` — Print the config file location (and whether it exists).
+`megaboom config` — Print the config file location (and whether it exists).
 
 `megaboom version` — Print the installed package version (set from git tags via setuptools-scm; falls back to `unknown` if no version metadata is available).
 
