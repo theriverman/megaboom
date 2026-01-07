@@ -12,7 +12,7 @@ Install or refresh from local source (rebuilds the wheel and replaces the shim i
 ```bash
 uv tool install --force --reinstall --no-cache .
 ```
-Versioning is derived from git tags via setuptools-scm; make sure your working tree has tags when building.
+Versioning is derived from git tags via setuptools-scm; make sure your working tree has tags when building (off-tag builds show a dev/local suffix).
 During development (live edits without reinstalls):
 ```bash
 uv tool install --force --editable --no-cache .
@@ -84,7 +84,7 @@ Rules: If no default/favourite is configured you must pass `--ble-id` or `--name
 ## Platform notes and limitations
 - macOS only; Linux/Windows are not supported/tested.
 - Needs BLE access and an existing paired device MAC (auto-detected on macOS; override with `--my-mac`).
-- Bleak return shapes are normalized internally; the CLI tolerates `<no name>` advertisers and prints `mfg_ids`.
+- Bleak return shapes are normalised internally; the CLI tolerates `<no name>` advertisers and prints `mfg_ids`.
 
 ## Uninstall / reinstall
 - Reinstall from local source: `uv tool install --force --reinstall --no-cache .`
